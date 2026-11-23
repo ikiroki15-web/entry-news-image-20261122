@@ -1,53 +1,40 @@
 // Penyalin gambar berita untuk entry news-image-20261122.
-//
-// Gambar final sudah disiapkan di repo sebagai entry.png, tepat di
-// sebelah berkas ini. Tugas program hanya menyalinnya ke folder
-// output agar dua run berurutan selalu menghasilkan byte yang sama
-// persis (deterministik).
-//
-// Lokasi entry.png dicari dari direktori script ini sendiri lewat
-// import.meta.url, dengan cadangan env MAKEFUN_BOT_DIR bila tersedia.
-// Pencarian tidak bergantung pada working directory, karena grader
-// bisa menjalankan script dari cwd mana pun.
+// Gambar final sudah disiapkan di repo sebagai entry.png di sebelah
+// berkas ini; tugas program hanya menyalinnya ke folder output
+// agar dua run berurutan selalu menghasilkan byte yang sama persis.
 
 import { copyFileSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Direktori skrip ini sendiri, dari URL modul — tidak bergantung pada
+// direktori kerja proses, yang tidak dijamin sama dengan lokasi repo.
 const scriptDir = fileURLToPath(new URL(".", import.meta.url));
-const besideScript = join(scriptDir, "entry.png");
 
+const candidates: string[] = [join(scriptDir, "entry.png")];
 const botDir = process.env.MAKEFUN_BOT_DIR;
-const inBotDir = botDir ? join(botDir, "entry.png") : null;
+if (botDir) {
+  candidates.push(join(botDir, "entry.png"));
+}
 
-const sourcePath = existsSync(besideScript)
-  ? besideScript
-  : inBotDir && existsSync(inBotDir)
-    ? inBotDir
-    : besideScript;
-
-const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
-const targetPath = join(outputDir, "entry.png");
-
-if (!existsSync(sourcePath)) {
+const sourcePath = candidates.find(
+  (p) => existsSync(p) && statSync(p).size > 0,
+);
+if (!sourcePath) {
   throw new Error(
-    `entry.png tidak ditemukan; dicari di ${besideScript}` +
-      (inBotDir ? ` dan ${inBotDir}` : ""),
+    `entry.png tidak ditemukan atau kosong; dicari di ${candidates.join(", ")}`,
   );
 }
 
-const sourceSize = statSync(sourcePath).size;
-if (sourceSize === 0) {
-  throw new Error(`entry.png kosong: ${sourcePath}`);
-}
-
+const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 mkdirSync(outputDir, { recursive: true });
+const targetPath = join(outputDir, "entry.png");
+
+// Salinan murni byte-per-byte: tidak ada stempel waktu atau metadata
+// yang ditulis ulang, jadi output selalu identik antar-run.
 copyFileSync(sourcePath, targetPath);
 
-if (!existsSync(targetPath)) {
-  throw new Error(`salinan tidak tercipta di ${targetPath}`);
-}
-
+const sourceSize = statSync(sourcePath).size;
 const writtenSize = statSync(targetPath).size;
 if (writtenSize !== sourceSize) {
   throw new Error(
